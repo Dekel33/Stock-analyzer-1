@@ -181,7 +181,7 @@ if ticker:
                             else: st.error(f"❌ **תזרים חופשי נמוך:** {fcf_to_ocf_ratio*100:.1f}% מהתזרים המפעיל")
 
             # ==========================================
-            # טאב 2: ניתוח טכני מתקדם - תיקון קומות וצירים מופרדים
+            # טאב 2: ניתוח טכני מתקדם - פתרון חיתוך חכם לממוצעים נעים
             # ==========================================
             with tab2:
                 st.header(f"📉 חדר ניתוח טכני מקצועי - {ticker}")
@@ -192,43 +192,61 @@ if ticker:
                     index=4, key="tech_tf", horizontal=True
                 )
                 
-                tf_mapping_tech = {
-                    "1D": {"period": "1d", "interval": "5m", "type": "intraday"},
-                    "5D": {"period": "5d", "interval": "15m", "type": "intraday"},
-                    "1M": {"period": "1mo", "interval": "1d", "type": "daily"},
-                    "6M": {"period": "6mo", "interval": "1d", "type": "daily"},
-                    "1Y": {"period": "1y", "interval": "1d", "type": "daily"},
-                    "YTD": {"period": "ytd", "interval": "1d", "type": "daily"},
-                    "3Y": {"period": "3y", "interval": "1d", "type": "daily"},
-                    "5Y": {"period": "5y", "interval": "1d", "type": "daily"}
-                }
+                # בדיקה האם מדובר בגרף תוך-יומי או גרף יומי היסטורי
+                is_intraday = timeframe_tech in ["1D", "5D"]
                 
-                cfg = tf_mapping_tech[timeframe_tech]
-                df_tech = stock.history(period=cfg["period"], interval=cfg["interval"])
+                if is_intraday:
+                    # עבור תוך-יומי (דקות) - מושכים בדיוק את הטווח המבוקש
+                    interval = "5m" if timeframe_tech == "1D" else "15m"
+                    df_tech = stock.history(period=timeframe_tech.lower(), interval=interval)
+                    
+                    if not df_tech.empty:
+                        df_tech['MA_Fast'] = df_tech['Close'].ewm(span=9, adjust=False).mean()
+                        df_tech['MA_Slow'] = df_tech['Close'].ewm(span=21, adjust=False).mean()
+                        df_tech['RSI'] = calculate_rsi(df_tech['Close'], period=14)
+                        fast_label, slow_label = "EMA 9 (מהיר)", "EMA 21 (איטי)"
+                else:
+                    # פתרון החיתוך החכם: עבור גרף יומי מושכים תמיד 5 שנים כדי שהממוצעים יחושבו במלואם!
+                    df_full = stock.history(period="5y", interval="1d")
+                    
+                    if not df_full.empty:
+                        # חישוב אינדיקטורים על הסט המלא (כך שאין NaN)
+                        df_full['MA_Fast'] = df_full['Close'].rolling(window=50).mean()
+                        df_full['MA_Slow'] = df_full['Close'].rolling(window=150).mean()
+                        df_full['RSI'] = calculate_rsi(df_full['Close'], period=14)
+                        fast_label, slow_label = "SMA 50 (טווח בינוני)", "SMA 150 (טווח ארוך)"
+                        
+                        # כעת חותכים את המידע לתצוגה בלבד לפי הלחצן הנבחר
+                        last_date = df_full.index[-1]
+                        if timeframe_tech == "1M":
+                            start_date = last_date - pd.Timedelta(days=30)
+                        elif timeframe_tech == "6M":
+                            start_date = last_date - pd.Timedelta(days=182)
+                        elif timeframe_tech == "1Y":
+                            start_date = last_date - pd.Timedelta(days=365)
+                        elif timeframe_tech == "YTD":
+                            start_date = pd.Timestamp(year=last_date.year, month=1, day=1, tz=last_date.tz)
+                        elif timeframe_tech == "3Y":
+                            start_date = last_date - pd.Timedelta(days=365*3)
+                        else:  # 5Y
+                            start_date = df_full.index[0]
+                            
+                        df_tech = df_full.loc[start_date:]
+                    else:
+                        df_tech = pd.DataFrame()
                 
+                # הצגת הגרף המשולב
                 if df_tech.empty:
                     st.error("לא ניתן היה למשוך נתוני מחיר עבור טווח הזמן שנבחר.")
                 else:
-                    if cfg["type"] == "intraday":
-                        df_tech['MA_Fast'] = df_tech['Close'].ewm(span=9, adjust=False).mean()
-                        df_tech['MA_Slow'] = df_tech['Close'].ewm(span=21, adjust=False).mean()
-                        fast_label, slow_label = "EMA 9 (מהיר)", "EMA 21 (איטי)"
-                    else:
-                        df_tech['MA_Fast'] = df_tech['Close'].rolling(window=50).mean()
-                        df_tech['MA_Slow'] = df_tech['Close'].rolling(window=150).mean()
-                        fast_label, slow_label = "SMA 50 (טווח בינוני)", "SMA 150 (טווח ארוך)"
-                    
-                    df_tech['RSI'] = calculate_rsi(df_tech['Close'], period=14)
-                    
-                    # שינוי קריטי: יצירת 3 קומות נפרדות לחלוטין למניעת עיוות צירים
                     fig_tech = make_subplots(
                         rows=3, cols=1, 
                         shared_xaxes=True, 
                         vertical_spacing=0.03,
-                        row_heights=[0.55, 0.20, 0.25] # 55% לנרות, 20% לווליום, 25% ל-RSI
+                        row_heights=[0.55, 0.20, 0.25]
                     )
                     
-                    # קומה 1: גרף נרות יפניים וממוצעים נעים (מחיר מניה)
+                    # קומה 1: נרות וממוצעים
                     fig_tech.add_trace(go.Candlestick(
                         x=df_tech.index, open=df_tech['Open'], high=df_tech['High'],
                         low=df_tech['Low'], close=df_tech['Close'], name='מחיר'
@@ -237,24 +255,22 @@ if ticker:
                     fig_tech.add_trace(go.Scatter(x=df_tech.index, y=df_tech['MA_Fast'], mode='lines', name=fast_label, line=dict(color='orange', width=1.5)), row=1, col=1)
                     fig_tech.add_trace(go.Scatter(x=df_tech.index, y=df_tech['MA_Slow'], mode='lines', name=slow_label, line=dict(color='blue', width=1.5)), row=1, col=1)
                     
-                    # קומה 2: נפח מסחר (Volume) בנפרד
+                    # קומה 2: נפח מסחר
                     colors = ['green' if row['Close'] >= row['Open'] else 'red' for _, row in df_tech.iterrows()]
                     fig_tech.add_trace(go.Bar(
                         x=df_tech.index, y=df_tech['Volume'], name='נפח מסחר',
                         marker_color=colors, opacity=0.7, showlegend=True
                     ), row=2, col=1)
                     
-                    # קומה 3: מתנד RSI בנפרד
+                    # קומה 3: RSI
                     fig_tech.add_trace(go.Scatter(
                         x=df_tech.index, y=df_tech['RSI'], mode='lines', name='RSI (14)',
                         line=dict(color='purple', width=1.5)
                     ), row=3, col=1)
                     
-                    # קווי גבול ל-RSI בקומה 3
                     fig_tech.add_shape(type="line", x0=df_tech.index[0], y0=70, x1=df_tech.index[-1], y1=70, line=dict(color="red", width=1, dash="dash"), row=3, col=1)
                     fig_tech.add_shape(type="line", x0=df_tech.index[0], y0=30, x1=df_tech.index[-1], y1=30, line=dict(color="green", width=1, dash="dash"), row=3, col=1)
                     
-                    # עיצוב שמות הצירים לכל קומה בנפרד
                     fig_tech.update_layout(
                         title=f"ניתוח טכני מתקדם עבור {ticker} (טווח נבחר: {timeframe_tech})",
                         yaxis_title="מחיר מניה ($)",
