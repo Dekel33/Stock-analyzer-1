@@ -181,7 +181,7 @@ if ticker:
                             else: st.error(f"❌ **תזרים חופשי נמוך:** {fcf_to_ocf_ratio*100:.1f}% מהתזרים המפעיל")
 
             # ==========================================
-            # טאב 2: ניתוח טכני מתקדם
+            # טאב 2: ניתוח טכני מתקדם - תיקון קומות וצירים מופרדים
             # ==========================================
             with tab2:
                 st.header(f"📉 חדר ניתוח טכני מקצועי - {ticker}")
@@ -214,20 +214,21 @@ if ticker:
                         df_tech['MA_Slow'] = df_tech['Close'].ewm(span=21, adjust=False).mean()
                         fast_label, slow_label = "EMA 9 (מהיר)", "EMA 21 (איטי)"
                     else:
-                        # עודכן מ-200 ל-150 לפי בקשתך
                         df_tech['MA_Fast'] = df_tech['Close'].rolling(window=50).mean()
                         df_tech['MA_Slow'] = df_tech['Close'].rolling(window=150).mean()
                         fast_label, slow_label = "SMA 50 (טווח בינוני)", "SMA 150 (טווח ארוך)"
                     
                     df_tech['RSI'] = calculate_rsi(df_tech['Close'], period=14)
                     
+                    # שינוי קריטי: יצירת 3 קומות נפרדות לחלוטין למניעת עיוות צירים
                     fig_tech = make_subplots(
-                        rows=2, cols=1, 
+                        rows=3, cols=1, 
                         shared_xaxes=True, 
-                        vertical_spacing=0.05,
-                        row_heights=[0.7, 0.3]
+                        vertical_spacing=0.03,
+                        row_heights=[0.55, 0.20, 0.25] # 55% לנרות, 20% לווליום, 25% ל-RSI
                     )
                     
+                    # קומה 1: גרף נרות יפניים וממוצעים נעים (מחיר מניה)
                     fig_tech.add_trace(go.Candlestick(
                         x=df_tech.index, open=df_tech['Open'], high=df_tech['High'],
                         low=df_tech['Low'], close=df_tech['Close'], name='מחיר'
@@ -236,26 +237,31 @@ if ticker:
                     fig_tech.add_trace(go.Scatter(x=df_tech.index, y=df_tech['MA_Fast'], mode='lines', name=fast_label, line=dict(color='orange', width=1.5)), row=1, col=1)
                     fig_tech.add_trace(go.Scatter(x=df_tech.index, y=df_tech['MA_Slow'], mode='lines', name=slow_label, line=dict(color='blue', width=1.5)), row=1, col=1)
                     
+                    # קומה 2: נפח מסחר (Volume) בנפרד
                     colors = ['green' if row['Close'] >= row['Open'] else 'red' for _, row in df_tech.iterrows()]
                     fig_tech.add_trace(go.Bar(
                         x=df_tech.index, y=df_tech['Volume'], name='נפח מסחר',
-                        marker_color=colors, opacity=0.3, showlegend=False
-                    ), row=1, col=1)
+                        marker_color=colors, opacity=0.7, showlegend=True
+                    ), row=2, col=1)
                     
+                    # קומה 3: מתנד RSI בנפרד
                     fig_tech.add_trace(go.Scatter(
                         x=df_tech.index, y=df_tech['RSI'], mode='lines', name='RSI (14)',
                         line=dict(color='purple', width=1.5)
-                    ), row=2, col=1)
+                    ), row=3, col=1)
                     
-                    fig_tech.add_shape(type="line", x0=df_tech.index[0], y0=70, x1=df_tech.index[-1], y1=70, line=dict(color="red", width=1, dash="dash"), row=2, col=1)
-                    fig_tech.add_shape(type="line", x0=df_tech.index[0], y0=30, x1=df_tech.index[-1], y1=30, line=dict(color="green", width=1, dash="dash"), row=2, col=1)
+                    # קווי גבול ל-RSI בקומה 3
+                    fig_tech.add_shape(type="line", x0=df_tech.index[0], y0=70, x1=df_tech.index[-1], y1=70, line=dict(color="red", width=1, dash="dash"), row=3, col=1)
+                    fig_tech.add_shape(type="line", x0=df_tech.index[0], y0=30, x1=df_tech.index[-1], y1=30, line=dict(color="green", width=1, dash="dash"), row=3, col=1)
                     
+                    # עיצוב שמות הצירים לכל קומה בנפרד
                     fig_tech.update_layout(
                         title=f"ניתוח טכני מתקדם עבור {ticker} (טווח נבחר: {timeframe_tech})",
                         yaxis_title="מחיר מניה ($)",
-                        yaxis2_title="RSI (0-100)",
+                        yaxis2_title="נפח מסחר",
+                        yaxis3_title="RSI (0-100)",
                         xaxis_rangeslider_visible=False, 
-                        height=700,
+                        height=750,
                         template="plotly_white",
                         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                     )
