@@ -88,7 +88,7 @@ if ticker:
                     
                     if not df_fund_chart.empty:
                         fig_fund = go.Figure()
-                        # נשתמש בגרף קו רציף ונקי לניתוח מהיר בפנדמנטלי
+                        # גרף קו רציף ונקי לניתוח מהיר בפנדמנטלי
                         fig_fund.add_trace(go.Scatter(
                             x=df_fund_chart.index, 
                             y=df_fund_chart['Close'], 
@@ -109,7 +109,8 @@ if ticker:
                         st.warning("לא נמצאו נתוני מחיר לטווח הזמן שנבחר.")
                 
                 with col_id:
-                    st.markdown("<h3 style='text-align: right;'>🪪 תעודת זהות למניה</h3>", unsafe_index=True)
+                    # תיקון שגיאת unsafe_index ל-unsafe_allow_html
+                    st.markdown("<h3 style='text-align: right;'>🪪 תעודת זהות למניה</h3>", unsafe_allow_html=True)
                     
                     # --- חישובים וחילוץ נתונים עבור תעודת הזהות ---
                     market_cap = info.get('marketCap')
@@ -121,7 +122,7 @@ if ticker:
                     pe = info.get('trailingPE')
                     fwd_pe = info.get('forwardPE')
                     peg = info.get('pegRatio')
-                    fwd_peg = info.get('forwardPegRatio', "N/A") # לעיתים לא קיים ב-API ומציג N/A
+                    fwd_peg = info.get('forwardPegRatio', "N/A")
                     
                     # Yields חישוב (TTM)
                     earnings_yield = (1 / pe) * 100 if pe else None
@@ -143,7 +144,7 @@ if ticker:
                     operating_margin = info.get('operatingMargins')
                     net_margin = info.get('profitMargins')
                     
-                    # תצוגה ויזואלית של הנתונים בתוך קוביות מעוצבות או טקסט מרוכז (מותאם לעברית)
+                    # תצוגה ויזואלית של הנתונים
                     with st.container(border=True):
                         st.markdown("**💰 Financials**")
                         st.write(f"**Market Cap:** {format_large_num(market_cap)}")
@@ -163,11 +164,12 @@ if ticker:
                         st.markdown("**⚖️ Balances**")
                         st.write(f"**Total Cash (MRQ):** {format_large_num(total_cash)}")
                         st.write(f"**Total Debt:** {format_large_num(total_debt)}")
-                        # סימון צבע לפי נטו חיובי או שלילי
+                        
+                        # תיקון פוטנציאלי נוסף מ-st.write ל-st.markdown עבור HTML תקין
                         if net_balance and net_balance > 0:
-                            st.write(f"**Net:** <span style='color:green;'>{format_large_num(net_balance)} (עודף מזומן)</span>", unsafe_allow_html=True)
+                            st.markdown(f"**Net:** <span style='color:green;'>{format_large_num(net_balance)} (עודף מזומן)</span>", unsafe_allow_html=True)
                         elif net_balance:
-                            st.write(f"**Net:** <span style='color:red;'>{format_large_num(net_balance)} (חוב נטו)</span>", unsafe_allow_html=True)
+                            st.markdown(f"**Net:** <span style='color:red;'>{format_large_num(net_balance)} (חוב נטו)</span>", unsafe_allow_html=True)
                         else:
                             st.write("**Net:** N/A")
                             
@@ -179,7 +181,7 @@ if ticker:
 
                 st.write("---")
                 
-                # --- כרטיס הניקוד האוטומטי (Scorecard) שנותר מהגרסה הקודמת ---
+                # --- כרטיס הניקוד האוטומטי (Scorecard) ---
                 st.subheader("📋 כרטיס ניקוד וחוקים אוטומטיים")
                 
                 roe = info.get('returnOnEquity')
@@ -190,14 +192,12 @@ if ticker:
                 
                 col_sc1, col_sc2 = st.columns(2)
                 with col_sc1:
-                    # בדיקת ROE
                     roe_text = f"{roe*100:.1f}%" if roe else "N/A"
                     if roe and roe >= 0.15:
                         st.success(f"✅ **תשואה על ההון (ROE):** {roe_text} (עומד ביעד של מעל 15%)")
                     else:
                         st.error(f"❌ **תשואה על ההון (ROE):** {roe_text} (מתחת ליעד של 15%)")
                         
-                    # בדיקת צמיחת הכנסות ו-EPS
                     if rev_growth and rev_growth > 0:
                         st.success(f"✅ **צמיחת הכנסות חיובית:** {rev_growth*100:.1f}%")
                     else:
@@ -210,7 +210,6 @@ if ticker:
                             st.warning(f"⚠️ **צמיחת ה-EPS איטית מקצב צמיחת ההכנסות.**")
                 
                 with col_sc2:
-                    # בדיקת יחס שוטף ומנוף
                     if current_ratio and current_ratio >= 1:
                         st.success(f"✅ **יחס שוטף:** {current_ratio:.2f} (גדול מ-1, נזילות טובה לטווח קצר)")
                     else:
@@ -223,7 +222,6 @@ if ticker:
                         else:
                             st.error(f"❌ **מנוף פיננסי (חוב להון):** {leverage:.2f} (גדול מ-1, מינוף גבוה)")
                             
-                    # מנגנון תזרים חכם מבוסס סקטור
                     if operating_cf and free_cash_flow:
                         fcf_to_ocf_ratio = free_cash_flow / operating_cf
                         growth_sectors = ['Technology', 'Technology Hardware', 'Semiconductors', 'Energy', 'Clean Energy']
@@ -238,22 +236,19 @@ if ticker:
                                 st.error(f"❌ **תזרים חופשי נמוך:** {fcf_to_ocf_ratio*100:.1f}% מהתזרים המפעיל (מתחת ל-50%)")
 
             # ==========================================
-            # טאב 2: ניתוח טכני מלא - מעודכן ל-5 שנים אחורה
+            # טאב 2: ניתוח טכני מלא - 5 שנים אחורה
             # ==========================================
             with tab2:
                 st.header(f"📉 ניתוח טכני מקיף (5 שנים היסטוריה) - {ticker}")
                 
-                # משיכת היסטוריית מחירים מלאה ל-5 שנים
                 df_tech = stock.history(period="5y", interval="1d")
                 
                 if df_tech.empty:
                     st.error("לא ניתן היה למשוך נתוני מחיר היסטוריים לניתוח הטכני.")
                 else:
-                    # חישוב אינדיקטורים טכניים
                     df_tech['SMA50'] = df_tech['Close'].rolling(window=50).mean()
                     df_tech['SMA200'] = df_tech['Close'].rolling(window=200).mean()
                     
-                    # יצירת גרף נרות יפניים אינטראקטיבי
                     fig_tech = go.Figure()
                     
                     fig_tech.add_trace(go.Candlestick(
@@ -272,7 +267,7 @@ if ticker:
                         title=f"גרף נרות יפניים וממוצעים נעים (5 שנים) עבור {ticker}",
                         xaxis_title="תאריך",
                         yaxis_title="מחיר בדולר ($)",
-                        xaxis_rangeslider_visible=True, # מאפשר גלילה וזום נוחים על פני 5 שנים
+                        xaxis_rangeslider_visible=True,
                         height=650,
                         template="plotly_white"
                     )
@@ -284,4 +279,4 @@ if ticker:
 
         except Exception as e:
             st.error(f"אירעה שגיאה בעיבוד הנתונים: {e}")
-            st.info("חלק מהנתונים הפיננסיים המורכבים (כמו מכפילים עתידיים או תשואות תזרים ספציפיות) עשויים שלא להיות זמינים ב-Yahoo Finance עבור חברה זו.")
+            st.info("חלק מהנתונים הפיננסיים המורכבים עשויים שלא להיות זמינים ב-Yahoo Finance עבור חברה זו.")
