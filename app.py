@@ -181,7 +181,7 @@ if ticker:
                             else: st.error(f"❌ **תזרים חופשי נמוך:** {fcf_to_ocf_ratio*100:.1f}% מהתזרים המפעיל")
 
             # ==========================================
-            # טאב 2: ניתוח טכני מתקדם - פתרון חיתוך חכם לממוצעים נעים
+            # טאב 2: ניתוח טכני מתקדם + סורק פריצות נפח חכם
             # ==========================================
             with tab2:
                 st.header(f"📉 חדר ניתוח טכני מקצועי - {ticker}")
@@ -192,11 +192,9 @@ if ticker:
                     index=4, key="tech_tf", horizontal=True
                 )
                 
-                # בדיקה האם מדובר בגרף תוך-יומי או גרף יומי היסטורי
                 is_intraday = timeframe_tech in ["1D", "5D"]
                 
                 if is_intraday:
-                    # עבור תוך-יומי (דקות) - מושכים בדיוק את הטווח המבוקש
                     interval = "5m" if timeframe_tech == "1D" else "15m"
                     df_tech = stock.history(period=timeframe_tech.lower(), interval=interval)
                     
@@ -204,41 +202,53 @@ if ticker:
                         df_tech['MA_Fast'] = df_tech['Close'].ewm(span=9, adjust=False).mean()
                         df_tech['MA_Slow'] = df_tech['Close'].ewm(span=21, adjust=False).mean()
                         df_tech['RSI'] = calculate_rsi(df_tech['Close'], period=14)
+                        # חישוב ממוצע נע של נפח מסחר לתוך היום
+                        df_tech['Vol_SMA20'] = df_tech['Volume'].rolling(window=20).mean()
                         fast_label, slow_label = "EMA 9 (מהיר)", "EMA 21 (איטי)"
                 else:
-                    # פתרון החיתוך החכם: עבור גרף יומי מושכים תמיד 5 שנים כדי שהממוצעים יחושבו במלואם!
                     df_full = stock.history(period="5y", interval="1d")
                     
                     if not df_full.empty:
-                        # חישוב אינדיקטורים על הסט המלא (כך שאין NaN)
                         df_full['MA_Fast'] = df_full['Close'].rolling(window=50).mean()
                         df_full['MA_Slow'] = df_full['Close'].rolling(window=150).mean()
                         df_full['RSI'] = calculate_rsi(df_full['Close'], period=14)
+                        # חישוב ממוצע נע של נפח המסחר בגרף יומי (20 יום)
+                        df_full['Vol_SMA20'] = df_full['Volume'].rolling(window=20).mean()
                         fast_label, slow_label = "SMA 50 (טווח בינוני)", "SMA 150 (טווח ארוך)"
                         
-                        # כעת חותכים את המידע לתצוגה בלבד לפי הלחצן הנבחר
                         last_date = df_full.index[-1]
-                        if timeframe_tech == "1M":
-                            start_date = last_date - pd.Timedelta(days=30)
-                        elif timeframe_tech == "6M":
-                            start_date = last_date - pd.Timedelta(days=182)
-                        elif timeframe_tech == "1Y":
-                            start_date = last_date - pd.Timedelta(days=365)
-                        elif timeframe_tech == "YTD":
-                            start_date = pd.Timestamp(year=last_date.year, month=1, day=1, tz=last_date.tz)
-                        elif timeframe_tech == "3Y":
-                            start_date = last_date - pd.Timedelta(days=365*3)
-                        else:  # 5Y
-                            start_date = df_full.index[0]
+                        if timeframe_tech == "1M": start_date = last_date - pd.Timedelta(days=30)
+                        elif timeframe_tech == "6M": start_date = last_date - pd.Timedelta(days=182)
+                        elif timeframe_tech == "1Y": start_date = last_date - pd.Timedelta(days=365)
+                        elif timeframe_tech == "YTD": start_date = pd.Timestamp(year=last_date.year, month=1, day=1, tz=last_date.tz)
+                        elif timeframe_tech == "3Y": start_date = last_date - pd.Timedelta(days=365*3)
+                        else: start_date = df_full.index[0]
                             
                         df_tech = df_full.loc[start_date:]
                     else:
                         df_tech = pd.DataFrame()
                 
-                # הצגת הגרף המשולב
                 if df_tech.empty:
                     st.error("לא ניתן היה למשוך נתוני מחיר עבור טווח הזמן שנבחר.")
                 else:
+                    # --- מנוע זיהוי פריצה אוטומטי ---
+                    last_vol = df_tech['Volume'].iloc[-1]
+                    last_vol_sma = df_tech['Vol_SMA20'].iloc[-1]
+                    
+                    # הצגת התראת פריצה בראש הטאב במידה ויש חריגה
+                    if not pd.isna(last_vol_sma) and last_vol_sma > 0:
+                        vol_ratio = last_vol / last_vol_sma
+                        if vol_ratio >= 2.0: # פריצת נפח מוגדרת כפי 2 ומעלה מהממוצע
+                            price_change = df_tech['Close'].iloc[-1] - df_tech['Open'].iloc[-1]
+                            
+                            st.markdown("### 🔔 מערכת זיהוי פריצות חכמה")
+                            if price_change > 0:
+                                st.success(f"🔥 **זיהוי פריצה שורית (Bullish Breakout)!** מניית {ticker} עולה בנפח מסחר חריג הגבוה פי **{vol_ratio:.1f}** מהממוצע של 20 התקופות האחרונות. כסף חכם נכנס למניה!")
+                            else:
+                                st.error(f"⚠️ **זיהוי לחץ מכירות כבד / שבירה (Bearish Breakdown)!** נפח המסחר גבוה פי **{vol_ratio:.1f}** מהממוצע, אך מלווה בירידות שערים. מוסדיים עשויים להפיץ סחורה החוצה.")
+                            st.write("---")
+
+                    # בניית הגרף ב-3 קומות
                     fig_tech = make_subplots(
                         rows=3, cols=1, 
                         shared_xaxes=True, 
@@ -255,11 +265,17 @@ if ticker:
                     fig_tech.add_trace(go.Scatter(x=df_tech.index, y=df_tech['MA_Fast'], mode='lines', name=fast_label, line=dict(color='orange', width=1.5)), row=1, col=1)
                     fig_tech.add_trace(go.Scatter(x=df_tech.index, y=df_tech['MA_Slow'], mode='lines', name=slow_label, line=dict(color='blue', width=1.5)), row=1, col=1)
                     
-                    # קומה 2: נפח מסחר
+                    # קומה 2: נפח מסחר + קו ממוצע נע לנפח (חדש!)
                     colors = ['green' if row['Close'] >= row['Open'] else 'red' for _, row in df_tech.iterrows()]
                     fig_tech.add_trace(go.Bar(
                         x=df_tech.index, y=df_tech['Volume'], name='נפח מסחר',
-                        marker_color=colors, opacity=0.7, showlegend=True
+                        marker_color=colors, opacity=0.6, showlegend=True
+                    ), row=2, col=1)
+                    
+                    # הוספת קו ממוצע נפח מעל העמודות
+                    fig_tech.add_trace(go.Scatter(
+                        x=df_tech.index, y=df_tech['Vol_SMA20'], mode='lines', 
+                        name='ממוצע נפח (20)', line=dict(color='black', width=1.5, dash='dot')
                     ), row=2, col=1)
                     
                     # קומה 3: RSI
@@ -277,7 +293,7 @@ if ticker:
                         yaxis2_title="נפח מסחר",
                         yaxis3_title="RSI (0-100)",
                         xaxis_rangeslider_visible=False, 
-                        height=750,
+                        height=800,
                         template="plotly_white",
                         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                     )
