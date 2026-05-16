@@ -10,7 +10,7 @@ st.set_page_config(page_title="מערכת ניתוח מניות חכמה", layou
 st.title("📊 מערכת לבחינת מניות בשוק ההון")
 st.write("ניתוח פנדמנטלי חכם וניתוח טכני מתקדם ישירות מהדפדפן")
 
-# תיבת קלט להזנת הטיקר בסרגל הצדי (Sidebar) או בראש העמוד
+# תיבת קלט להזנת הטיקר
 ticker = st.text_input("הכנס טיקר של מניה (למשל: AAPL, MSFT, NVDA, PANW):", "AAPL").upper().strip()
 
 if ticker:
@@ -36,7 +36,7 @@ if ticker:
             
             st.subheader(f"חברה: {company_name} | סקטור: {sector} ({industry})")
             
-            # יצירת הטאבים המופרדים כפי שביקשת
+            # יצירת הטאבים המופרדים
             tab1, tab2 = st.tabs(["🔍 ניתוח פנדמנטלי", "📈 ניתוח טכני"])
             
             # ==========================================
@@ -74,18 +74,16 @@ if ticker:
                 
                 gross_margin = info.get('grossMargins')
                 operating_margin = info.get('operatingMargins')
-                net_margin = info.get('profitMargins') # תוספת מומלצת: שולי רווח נקי
+                net_margin = info.get('profitMargins')
                 rev_growth = info.get('revenueGrowth')
                 earnings_growth = info.get('earningsGrowth')
                 
-                # הצגת שולי רווח באחוזים
                 gm_p = f"{gross_margin*100:.1f}%" if gross_margin else "N/A"
                 om_p = f"{operating_margin*100:.1f}%" if operating_margin else "N/A"
                 nm_p = f"{net_margin*100:.1f}%" if net_margin else "N/A"
                 
                 st.write(f"**שולי רווח גולמי:** {gm_p} | **שולי רווח תפעולי:** {om_p} | **שולי רווח נקי:** {nm_p}")
                 
-                # בדיקת עקביות וקצב צמיחה
                 if rev_growth and rev_growth > 0:
                     st.success(f"✅ צמיחת הכנסות חיובית (רבעונית שנה מול שנה): {rev_growth*100:.1f}%")
                 else:
@@ -103,7 +101,7 @@ if ticker:
                 st.subheader("⚖️ דוח מאזן וחוסן פיננסי")
                 
                 current_ratio = info.get('currentRatio')
-                debt_to_equity = info.get('debtToEquity') # מיוצג לרוב באחוזים ב-yfinance (למשל 50 = 0.5)
+                debt_to_equity = info.get('debtToEquity')
                 
                 col_b1, col_b2 = st.columns(2)
                 with col_b1:
@@ -114,7 +112,7 @@ if ticker:
                         
                 with col_b2:
                     if debt_to_equity:
-                        leverage = debt_to_equity / 100  # המרה למספר עשרוני
+                        leverage = debt_to_equity / 100
                         if leverage <= 1:
                             st.success(f"✅ מנוף פיננסי (חוב להון): {leverage:.2f} (קטן מ-1, רמת מינוף בריאה)")
                         else:
@@ -127,7 +125,6 @@ if ticker:
                 # --- 4. תזרים מזומנים (מנגנון חכם לחברות צמיחה) ---
                 st.subheader("💵 ניתוח תזרים מזומנים (מבוסס סקטור)")
                 
-                # ננסה לחלץ נתונים מהדוח האחרון הזמין
                 try:
                     operating_cash_flow = cashflow.loc['Operating Cash Flow'].iloc[0] if 'Operating Cash Flow' in cashflow.index else info.get('operatingCashflow')
                     capital_expenditure = abs(cashflow.loc['Capital Expenditure'].iloc[0]) if 'Capital Expenditure' in cashflow.index else abs(info.get('capitalExpenditure', 0))
@@ -144,10 +141,8 @@ if ticker:
                     st.write(f"**תזרים מפעילויות (OCF):** ${operating_cash_flow:,.0f}")
                     st.write(f"**תזרים חופשי (FCF):** ${free_cash_flow:,.0f}")
                     
-                    # חישוב אחוז FCF מתוך התזרים המפעיל
                     fcf_to_ocf_ratio = free_cash_flow / operating_cash_flow
                     
-                    # זיהוי סקטורים של צמיחה מהירה / עתירי הון
                     growth_sectors = ['Technology', 'Technology Hardware', 'Semiconductors', 'Energy', 'Clean Energy']
                     is_growth_sector = any(sec.lower() in sector.lower() for sec in growth_sectors)
                     
@@ -161,19 +156,19 @@ if ticker:
                             
                     if capital_expenditure:
                         capex_ratio = capital_expenditure / operating_cash_flow
-                        st.write(f"**הוצאות הוניות (CapEx) מהתזרים:** {capex_ratio*100:.1f}%")
+                        st.write(f"**הוצאות הוניות (CapEx) מהתזר:** {capex_ratio*100:.1f}%")
                 else:
                     st.info("מידע מלא על תזרים המזומנים אינו זמין בזמן אמת עבור חברה זו.")
                     
             # ==========================================
-            # טאב 2: ניתוח טכני
+            # טאב 2: ניתוח טכני (מעודכן ל-3 שנים כברירת מחדל)
             # ==========================================
             with tab2:
                 st.header(f"📉 ניתוח טכני וגרף נרות אינטראקטיבי - {ticker}")
                 
-                # בחירת טווח זמן לגרף
-                period = st.selectbox("בחר טווח זמן לגרף הגרף הטכני:", ["שנה ("1y")", "6 חודשים ("6m")", "3 חודשים ("3m")", "שנתיים ("2y")"], index=0)
-                period_code = "1y" if "שנה" in period else "6m" if "6" in period else "3m" if "3" in period else "2y"
+                # בחירת טווח זמן לגרף - עודכן לגרף 3 שנים כברירת מחדל וסודרו הגרשיים
+                period = st.selectbox("בחר טווח זמן לגרף הטכני:", ["3 שנים ('3y')", "שנה ('1y')", "6 חודשים ('6m')", "שנתיים ('2y')"], index=0)
+                period_code = "3y" if "3 שנים" in period else "1y" if "שנה" in period else "6m" if "6" in period else "2y"
                 
                 # משיכת היסטוריית מחירים
                 df = stock.history(period=period_code)
@@ -209,15 +204,13 @@ if ticker:
                         title=f"גרף נרות יפניים כולל ממוצעים נעים עבור {ticker}",
                         xaxis_title="תאריך",
                         yaxis_title="מחיר בדולר ($)",
-                        xaxis_rangeslider_visible=False, # מבטל את סליידר הזמן למטה לנוחות בטלפון
+                        xaxis_rangeslider_visible=False, # נוחות בטלפון
                         height=600,
                         template="plotly_white"
                     )
                     
-                    # הצגת הגרף באפליקציה
                     st.plotly_chart(fig, use_container_width=True)
                     
-                    # הצגת נתונים מסכמים אחרונים
                     last_close = df['Close'].iloc[-1]
                     st.write(f"**מחיר סגירה אחרון:** ${last_close:.2f}")
 
