@@ -32,7 +32,7 @@ def calculate_rsi(series, period=14):
 st.title("📊 מערכת לבחינת מניות בשוק ההון - גרסת פרו")
 
 # תיבת קלט להזנת הטיקר
-ticker = st.text_input("הכנס טיקר של מניה (למשל: AAPL, MSFT, NVDA, PANW):", "AAPL").upper().strip()
+ticker = st.text_input("הכנס טיקר של מניה (למשל: AAPL, MSFT, NVDA):", "AAPL").upper().strip()
 
 if ticker:
     with st.spinner('מושך נתונים מ-Yahoo Finance... אנא המתן'):
