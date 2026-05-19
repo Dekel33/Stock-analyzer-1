@@ -86,7 +86,6 @@ st.markdown("<div class='rtl-container'><h2 style='margin-bottom:0;'>📈 Stock 
 ticker = st.text_input("הכנס טיקר:", "AAPL").upper().strip()
 
 if ticker:
-    # תיקון קריטי: st.spinner באותיות קטנות למניעת קריסה
     with st.spinner('מחלץ נתונים...'):
         try:
             stock = yf.Ticker(ticker)
@@ -176,7 +175,7 @@ if ticker:
                 else: st.error(f"❌ **יחס שוטף נמוך מ-1**")
 
             # ==========================================
-            # טאב 2: ניתוח טכני מתקדם
+            # טאב 2: ניתוח טכני מתקדם - תיקון הגדרות ה-Line של פלוטלי
             # ==========================================
             with tab2:
                 timeframe_tech = st.radio("בחר טווח זמן לניתוח:", ["1D", "5D", "1M", "6M", "1Y", "YTD", "3Y", "5Y"], index=4, key="tech_tf")
@@ -245,10 +244,12 @@ if ticker:
 
                     fig_tech = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.55, 0.22, 0.23])
                     
+                    # התיקון הקריטי כאן: הגדרת צבעי נרות באמצעות dictionaries תקינים בפלוטלי
                     fig_tech.add_trace(go.Candlestick(
                         x=df_tech.index, open=df_tech['Open'], high=df_tech['High'], low=df_tech['Low'], close=df_tech['Close'],
-                        name='מחיר', increasing_line_color='#089981', increasing_fill_color='#089981',
-                        decreasing_line_color='#f23645', decreasing_fill_color='#f23645'
+                        name='מחיר',
+                        increasing=dict(line=dict(color='#089981'), fillcolor='#089981'),
+                        decreasing=dict(line=dict(color='#f23645'), fillcolor='#f23645')
                     ), row=1, col=1)
                     
                     fig_tech.add_trace(go.Scatter(x=df_tech.index, y=df_tech['MA_Fast'], mode='lines', name=fast_label, line=dict(color='#ff9f43', width=1.5)), row=1, col=1)
