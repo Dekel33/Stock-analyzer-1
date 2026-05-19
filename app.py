@@ -124,20 +124,37 @@ if ticker:
                         "3Y": {"period": "3y", "interval": "1d"}, "5Y": {"period": "5y", "interval": "1d"}
                     }
                     opts_f = tf_mapping_fund[timeframe_fund]
-                    df_fund_chart = stock.history(period=opts_f["period"], interval=opts_f["interval"])
+                    
+                    # הגנה חכמה מפני קריסות בשורה 139 לשעבר
+                    try:
+                        df_fund_chart = stock.history(period=opts_f["period"], interval=opts_f["interval"])
+                    except Exception:
+                        df_fund_chart = pd.DataFrame()
                     
                     if not df_fund_chart.empty:
                         fig_fund = go.Figure()
                         fig_fund.add_trace(go.Scatter(x=df_fund_chart.index, y=df_fund_chart['Close'], mode='lines', name='מחיר', line=dict(color='#0f172a', width=2)))
                         fig_fund.update_layout(hovermode='x unified', dragmode=False, height=300, template="plotly_white", margin=dict(l=5, r=5, t=5, b=5))
                         st.plotly_chart(fig_fund, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
+                    else:
+                        st.warning("נתוני היסטוריית המחיר לטווח שנבחר אינם נתמכים בטיקר זה.")
                 
                 with col_id:
                     with st.container(border=True):
                         st.markdown("**תעודת זהות פיננסית**")
+                        
+                        # פירוק משתנים למניעת שגיאות סינטקסט של פייתון ישן
+                        pe_val = info.get('trailingPE')
+                        fwd_pe_val = info.get('forwardPE')
+                        peg_val = info.get('pegRatio')
+                        
+                        pe_txt = f"{pe_val:.1f}" if pe_val else "N/A"
+                        fwd_pe_txt = f"{fwd_pe_val:.1f}" if fwd_pe_val else "N/A"
+                        peg_txt = f"{peg_val:.2f}" if peg_val else "N/A"
+                        
                         st.write(f"**Market Cap:** {format_large_num(info.get('marketCap'))}")
-                        st.write(f"**P/E / FWD P/E:** {f\"{info.get('trailingPE', 0):.1f}\" if info.get('trailingPE') else 'N/A'} / {f\"{info.get('forwardPE', 0):.1f}\" if info.get('forwardPE') else 'N/A'}")
-                        st.write(f"**PEG Ratio:** {f\"{info.get('pegRatio', 0):.2f}\" if info.get('pegRatio') else 'N/A'}")
+                        st.write(f"**P/E / FWD P/E:** {pe_txt} / {fwd_pe_txt}")
+                        st.write(f"**PEG Ratio:** {peg_txt}")
                         st.write(f"**Gross Margin:** {format_pct(info.get('grossMargins'))}")
                         st.write(f"**Operating Margin:** {format_pct(info.get('operatingMargins'))}")
                         st.write(f"**Net Margin:** {format_pct(info.get('profitMargins'))}")
@@ -157,31 +174,42 @@ if ticker:
                 else: st.error(f"❌ **יחס שוטף נמוך מ-1**")
 
             # ==========================================
-            # טאב 2: ניתוח טכני מתקדם - מותאם מובייל פרימיום
+            # טאב 2: ניתוח טכני מתקדם
             # ==========================================
             with tab2:
                 timeframe_tech = st.radio("בחר טווח זמן לניתוח:", ["1D", "5D", "1M", "6M", "1Y", "YTD", "3Y", "5Y"], index=4, key="tech_tf")
                 
                 is_intraday = timeframe_tech in ["1D", "5D"]
                 
-                # משיכת נתוני ייחוס לחישוב קו ממוצע ווליום 3 חודשים אמיתי ויציב
                 df_ref_3m = stock.history(period="3mo", interval="1d")
                 vol_ma_3m_global = df_ref_3m['Volume'].mean() if not df_ref_3m.empty else 0
                 
                 if is_intraday:
                     interval = "5m" if timeframe_tech == "1D" else "15m"
-                    df_tech = stock.history(period=timeframe_tech.lower(), interval=interval)
+                    try:
+                        df_tech = stock.history(period=timeframe_tech.lower(), interval=interval)
+                    except Exception:
+                        df_tech = pd.DataFrame()
+                        
                     if not df_tech.empty:
                         df_tech['MA_Fast'] = df_tech['Close'].ewm(span=9, adjust=False).mean()
                         df_tech['MA_Slow'] = df_tech['Close'].ewm(span=21, adjust=False).mean()
                         df_tech['RSI'] = calculate_rsi(df_tech['Close'], period=14)
                         fast_label, slow_label = "EMA 9", "EMA 21"
                 else:
-                    df_full = stock.history(period="5y", interval="1d")
+                    try:
+                        df_full = stock.history(period="5y", interval="1d")
+                    except Exception:
+                        df_full = pd.DataFrame()
+                        
                     if not df_full.empty:
                         df_full['MA_Fast'] = df_full['Close'].rolling(window=50).mean()
                         df_full['MA_Slow'] = df_full['Close'].rolling(window=150).mean()
                         df_full['RSI'] = calculate_rsi(df_full['Close'], period=14)
+                        
+                        df_full['Vol_MA_3M'] = df_full['Volume'].rolling(window=63).mean()
+                        df_full['Vol_SMA'] = df_full['Volume'].rolling(window=20).mean()
+                        
                         fast_label, slow_label = "SMA 50", "SMA 150"
                         
                         last_date = df_full.index[-1]
@@ -196,12 +224,23 @@ if ticker:
                         df_tech = pd.DataFrame()
                 
                 if df_tech.empty:
-                    st.error("לא נמצאו נתונים לטווח שנבחר.")
+                    st.error("לא נמצאו נתוני מחיר היסטוריים לטווח שנבחר בטיקר זה.")
                 else:
-                    # בניית הגרף ב-3 קומות מותאמות מובייל (צבעי מסחר בינלאומיים)
+                    # מנוע זיהוי פריצה אוטומטי
+                    last_vol = df_tech['Volume'].iloc[-1]
+                    if vol_ma_3m_global > 0:
+                        vol_ratio = last_vol / vol_ma_3m_global
+                        if vol_ratio >= 1.5:
+                            price_change = df_tech['Close'].iloc[-1] - df_tech['Open'].iloc[-1]
+                            st.markdown("<div class='rtl-container'><h4>🔔 איתות פריצת מחזור מסחר</h4></div>", unsafe_allow_html=True)
+                            if price_change > 0:
+                                st.success(f"🔥 **פריצה שורית!** המניה נסחרת בנפח חריג הגבוה פי **{vol_ratio:.1f}** מממוצע ה-3 חודשים שלה בליווי עליות מחיר.")
+                            else:
+                                st.error(f"⚠️ **לחץ מוכרים/שבירה!** נפח חריג גבוה פי **{vol_ratio:.1f}** מממוצע ה-3 חודשים מלווה בירידות שערים.")
+                            st.write("---")
+
                     fig_tech = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.55, 0.22, 0.23])
                     
-                    # קומה 1: מחיר (נרות יפניים מקצועיים)
                     fig_tech.add_trace(go.Candlestick(
                         x=df_tech.index, open=df_tech['Open'], high=df_tech['High'], low=df_tech['Low'], close=df_tech['Close'],
                         name='מחיר', increasing_line_color='#089981', increasing_fill_color='#089981',
@@ -211,15 +250,12 @@ if ticker:
                     fig_tech.add_trace(go.Scatter(x=df_tech.index, y=df_tech['MA_Fast'], mode='lines', name=fast_label, line=dict(color='#ff9f43', width=1.5)), row=1, col=1)
                     fig_tech.add_trace(go.Scatter(x=df_tech.index, y=df_tech['MA_Slow'], mode='lines', name=slow_label, line=dict(color='#2196f3', width=1.5)), row=1, col=1)
                     
-                    # קומה 2: ווליום משודרג (עמודות מודגשות בפריצה)
-                    # קביעת שקיפות קשיחה לעמודות: עמודה שחוצה את ממוצע ה-3 חודשים מקבלת צבע מלא ובולט
                     colors = []
                     opacities = []
                     for _, row in df_tech.iterrows():
                         is_bullish = row['Close'] >= row['Open']
                         base_color = '#089981' if is_bullish else '#f23645'
                         colors.append(base_color)
-                        # אם הווליום הנוכחי גבוה מממוצע 3 החודשים - תן לו 100% צבע, אחרת שקיפות חלשה
                         opacities.append(1.0 if row['Volume'] >= vol_ma_3m_global else 0.3)
                     
                     fig_tech.add_trace(go.Bar(
@@ -227,23 +263,19 @@ if ticker:
                         marker=dict(color=colors, opacity=opacities), showlegend=False
                     ), row=2, col=1)
                     
-                    # הוספת קו ממוצע ווליום 3 חודשים יציב (נראה מעולה גם במובייל וגם באינטרדיי!)
                     fig_tech.add_shape(
                         type="line", x0=df_tech.index[0], y0=vol_ma_3m_global, x1=df_tech.index[-1], y1=vol_ma_3m_global,
                         line=dict(color='#2563eb', width=2.5, dash='solid'), row=2, col=1
                     )
-                    # הוספת תווית טקסט קטנה מעל קו הווליום
                     fig_tech.add_annotation(
                         x=df_tech.index[int(len(df_tech)*0.1)], y=vol_ma_3m_global, text="ממוצע 3 חודשים",
                         showarrow=False, yshift=10, font=dict(color="#2563eb", size=10), row=2, col=1
                     )
                     
-                    # קומה 3: מתנד RSI
                     fig_tech.add_trace(go.Scatter(x=df_tech.index, y=df_tech['RSI'], mode='lines', name='RSI', line=dict(color='#7e57c2', width=1.5)), row=3, col=1)
                     fig_tech.add_shape(type="line", x0=df_tech.index[0], y0=70, x1=df_tech.index[-1], y1=70, line=dict(color="#f23645", width=1, dash="dash"), row=3, col=1)
                     fig_tech.add_shape(type="line", x0=df_tech.index[0], y0=30, x1=df_tech.index[-1], y1=30, line=dict(color="#089981", width=1, dash="dash"), row=3, col=1)
                     
-                    # נעילת תזוזה וקביעת קרוסהייר אנכי מיושר
                     fig_tech.update_xaxes(showspikes=True, spikemode='across', spikesnap='cursor', spikethickness=1, spikedash='solid', spikecolor='#94a3b8')
                     fig_tech.update_layout(
                         hovermode='x unified', dragmode=False, xaxis_rangeslider_visible=False, height=600,
@@ -251,17 +283,11 @@ if ticker:
                         legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="right", x=1, font=dict(size=10))
                     )
                     
-                    st.plotly_chart(fig_tech, use_container_width=True, config={
-                        'scrollZoom': False, 'displayModeBar': False
-                    })
+                    st.plotly_chart(fig_tech, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
                     
-                    # ==========================================
-                    # 🔥 פתרון המובייל הבלעדי: סליידר מגע למדידת אחוזים בטאץ' יחיד
-                    # ==========================================
                     st.write("---")
                     st.markdown("<div class='rtl-container'><h4>📏 מחשבון אחוזים וטווחים מותאם לנייד</h4><p style='color:#64748b; font-size:12px; margin-top:0;'>הזז את האצבע על הסליידר כדי למדוד תשואה ושינוי בין שני תאריכים על הגרף מטה:</p></div>", unsafe_allow_html=True)
                     
-                    # יצירת רשימת תאריכים קריאה ונוחה לסליידר
                     df_tech = df_tech.copy()
                     if is_intraday:
                         df_tech['display_time'] = df_tech.index.strftime('%H:%M')
@@ -270,7 +296,6 @@ if ticker:
                         
                     time_list = df_tech['display_time'].tolist()
                     
-                    # סליידר טווח מבוסס אינדקס (100% חסין תקלות וקריסות במובייל)
                     start_idx, end_idx = st.select_slider(
                         "גרור לבחירת טווח מדידה:",
                         options=range(len(time_list)),
@@ -278,7 +303,6 @@ if ticker:
                         format_func=lambda x: time_list[x]
                     )
                     
-                    # חישוב הנתונים לטווח הנבחר בסליידר
                     p1 = df_tech['Close'].iloc[start_idx]
                     p2 = df_tech['Close'].iloc[end_idx]
                     pct_diff = ((p2 - p1) / p1) * 100
@@ -287,7 +311,6 @@ if ticker:
                     t1_str = time_list[start_idx]
                     t2_str = time_list[end_idx]
                     
-                    # תצוגת כרטיס המדידה המקצועי
                     col_m1, col_m2, col_m3 = st.columns(3)
                     with col_m1:
                         st.metric("טווח שנמדד", f"{t1_str} ➡️ {t2_str}")
@@ -295,7 +318,6 @@ if ticker:
                         color_arrow = "🔺" if price_diff >= 0 else "🔻"
                         st.metric("שינוי במחיר ($)", f"${price_diff:.2f}", f"{color_arrow} ${abs(price_diff):.2f}")
                     with col_m3:
-                        # צביעת אחוז השינוי לפי כיוון התנועה
                         if pct_diff >= 0:
                             st.markdown(f"<div style='background-color:#e6f4ea; padding:10px; border-radius:8px; text-align:center;'><span style='color:#137333; font-size:14px; font-weight:600;'>תשואה בטווח</span><br><b style='color:#137334; font-size:22px;'>+{pct_diff:.2f}%</b></div>", unsafe_allow_html=True)
                         else:
