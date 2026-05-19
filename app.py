@@ -86,7 +86,8 @@ st.markdown("<div class='rtl-container'><h2 style='margin-bottom:0;'>📈 Stock 
 ticker = st.text_input("הכנס טיקר:", "AAPL").upper().strip()
 
 if ticker:
-    with St.spinner('מחלץ נתונים...'):
+    # תיקון קריטי: st.spinner באותיות קטנות למניעת קריסה
+    with st.spinner('מחלץ נתונים...'):
         try:
             stock = yf.Ticker(ticker)
             info = stock.info
@@ -125,12 +126,10 @@ if ticker:
                     }
                     opts_f = tf_mapping_fund[timeframe_fund]
                     
-                    # פתרון באג שורה 139: הגנה מפני קריסות פנימיות של yfinance
                     try:
                         df_fund_chart = stock.history(period=opts_f["period"], interval=opts_f["interval"])
                     except Exception:
                         try:
-                            # ניסיון חלופי ללא הגדרת אינטרוול דקות למקרה של סופ"ש/חסימת שרת
                             df_fund_chart = stock.history(period=opts_f["period"])
                         except Exception:
                             df_fund_chart = pd.DataFrame()
@@ -177,14 +176,13 @@ if ticker:
                 else: st.error(f"❌ **יחס שוטף נמוך מ-1**")
 
             # ==========================================
-            # טאב 2: ניתוח טכני מתקדם - חסין שגיאות לחלוטין
+            # טאב 2: ניתוח טכני מתקדם
             # ==========================================
             with tab2:
                 timeframe_tech = st.radio("בחר טווח זמן לניתוח:", ["1D", "5D", "1M", "6M", "1Y", "YTD", "3Y", "5Y"], index=4, key="tech_tf")
                 
                 is_intraday = timeframe_tech in ["1D", "5D"]
                 
-                # מחישוב ממוצע ווליום 3 חודשים מוגן משגיאות
                 try:
                     df_ref_3m = stock.history(period="3mo", interval="1d")
                     vol_ma_3m_global = df_ref_3m['Volume'].mean() if not df_ref_3m.empty else 0
@@ -233,7 +231,6 @@ if ticker:
                 if df_tech.empty:
                     st.error("לא נמצאו נתוני מחיר היסטוריים לטווח שנבחר בטיקר זה.")
                 else:
-                    # מנוע זיהוי פריצה אוטומטי
                     last_vol = df_tech['Volume'].iloc[-1]
                     if vol_ma_3m_global > 0:
                         vol_ratio = last_vol / vol_ma_3m_global
