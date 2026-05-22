@@ -89,7 +89,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# פונקציית עזר לעיצוב מספרים גדולים - תוקנה לתמיכה במספרים שליליים כמו Net Balance
+# פונקציית עזר לעיצוב מספרים גדולים (כולל מספרים שליליים)
 def format_large_num(num):
     if num is None or pd.isna(num): return "N/A"
     is_negative = num < 0
@@ -102,13 +102,21 @@ def format_large_num(num):
         
     return f"-{txt}" if is_negative else txt
 
-# פונקציית עזר לעיצוב אחוזים - תוקנה למניעת עיוות הדיבידנדים
-def format_pct(val):
+# פונקציה לעיצוב אחוזים רגילים שמגיעים כעשרוני (כמו רווח גולמי ותפעולי)
+def format_pct_raw(val):
     if val is None or pd.isna(val): return "N/A"
-    # אם הנתון כבר מגיע באחוזים שלמים (גדול מ-1) נציג אותו, אחרת נכפיל ב-100
+    # אם הנתון כבר הוכפל (גדול מ-1) נציג כפי שהוא, אחרת נכפיל ב-100
     if abs(val) > 1.0:
         return f"{val:.2f}%"
     return f"{val * 100:.2f}%"
+
+# פונקציה ייעודית לחילוץ אמין של תשואת דיבידנד מ-Yahoo Finance
+def format_dividend(val):
+    if val is None or pd.isna(val) or val == 0: return "N/A"
+    # Yahoo Finance מחזיר לרוב את תשואת הדיבידנד כערך עשרוני קטן (למשל 0.0055 עבור 0.55%)
+    if val < 1.0:
+        return f"{val * 100:.2f}%"
+    return f"{val:.2f}%"
 
 # פונקציה לחישוב מתנד RSI
 def calculate_rsi(series, period=14):
@@ -209,7 +217,7 @@ if ticker:
             tab1, tab2 = st.tabs(["🔍 ניתוח פנדמנטלי", "📊 ניתוח טכני"])
             
             # ==========================================
-            # טאב 1: ניתוח פנדמנטלי (תיקון הנתונים הפיננסיים והפורמט)
+            # טאב 1: ניתוח פנדמנטלי (תיקון סופי לתצוגת האחוזים)
             # ==========================================
             with tab1:
                 col_graph, col_id = st.columns([2.0, 1.0])
@@ -238,9 +246,9 @@ if ticker:
                     col_cf_yield = (operating_cf / market_cap) * 100 if operating_cf and market_cap else None
                     fcf_yield = (free_cash_flow / market_cap) * 100 if free_cash_flow and market_cap else None
                     
-                    # תיקון דיבידנד: הבאת הנתון בצורה אמינה
-                    div_yield = info.get('dividendYield', 0)
-                    payout_ratio = info.get('payoutRatio', 0)
+                    # שימוש בפונקציות הייעודיות החדשות למניעת עיוות נתוני דיבידנד
+                    div_yield = info.get('dividendYield')
+                    payout_ratio = info.get('payoutRatio')
                     
                     total_cash = info.get('totalCash')
                     total_debt = info.get('totalDebt')
@@ -262,7 +270,7 @@ if ticker:
                         <table style='width:100%; margin-bottom:6px; color:#b2b5be;'>
                             <tr><td>Earnings Yield:</td><td style='text-align:left; color:#ffffff;'>{f'{earnings_yield:.1f}%' if earnings_yield else 'N/A'}</td></tr>
                             <tr><td>C/F Yield / FCF Yield:</td><td style='text-align:left; color:#ffffff;'>{f'{col_cf_yield:.1f}%' if col_cf_yield else 'N/A'} / {f'{fcf_yield:.1f}%' if fcf_yield else 'N/A'}</td></tr>
-                            <tr><td>Dividend / Payout:</td><td style='text-align:left; color:#ffffff;'>{format_pct(div_yield)} / {format_pct(payout_ratio)}</td></tr>
+                            <tr><td>Dividend / Payout:</td><td style='text-align:left; color:#ffffff;'>{format_dividend(div_yield)} / {format_pct_raw(payout_ratio)}</td></tr>
                         </table>
                         
                         <span style='color:#2962ff; font-weight:700;'>⚖️ Balances</span>
@@ -273,8 +281,8 @@ if ticker:
                         
                         <span style='color:#2962ff; font-weight:700;'>📊 Margins</span>
                         <table style='width:100%; color:#b2b5be;'>
-                            <tr><td>Gross Margin:</td><td style='text-align:left; color:#ffffff;'>{format_pct(info.get('grossMargins'))}</td></tr>
-                            <tr><td>Operating / Net Margin:</td><td style='text-align:left; color:#ffffff;'>{format_pct(info.get('operatingMargins'))} / {format_pct(info.get('profitMargins'))}</td></tr>
+                            <tr><td>Gross Margin:</td><td style='text-align:left; color:#ffffff;'>{format_pct_raw(info.get('grossMargins'))}</td></tr>
+                            <tr><td>Operating / Net Margin:</td><td style='text-align:left; color:#ffffff;'>{format_pct_raw(info.get('operatingMargins'))} / {format_pct_raw(info.get('profitMargins'))}</td></tr>
                         </table>
                     </div>
                     """, unsafe_allow_html=True)
