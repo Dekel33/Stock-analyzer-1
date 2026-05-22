@@ -105,18 +105,21 @@ def format_large_num(num):
 # פונקציה לעיצוב אחוזים רגילים שמגיעים כעשרוני (כמו רווח גולמי ותפעולי)
 def format_pct_raw(val):
     if val is None or pd.isna(val): return "N/A"
-    # אם הנתון כבר הוכפל (גדול מ-1) נציג כפי שהוא, אחרת נכפיל ב-100
     if abs(val) > 1.0:
         return f"{val:.2f}%"
     return f"{val * 100:.2f}%"
 
-# פונקציה ייעודית לחילוץ אמין של תשואת דיבידנד מ-Yahoo Finance
-def format_dividend(val):
+# פונקציה תוקנה סופית: פותרת את באג ה-35% באמצעות מנגנון הגנה חכם מפני כפל כפול
+def format_dividend_fixed(val):
     if val is None or pd.isna(val) or val == 0: return "N/A"
-    # Yahoo Finance מחזיר לרוב את תשואת הדיבידנד כערך עשרוני קטן (למשל 0.0055 עבור 0.55%)
-    if val < 1.0:
-        return f"{val * 100:.2f}%"
-    return f"{val:.2f}%"
+    
+    # ניסיון ראשון: בדיקה אם הערך מגיע כעשרוני קטן (למשל 0.005)
+    test_calc = val * 100
+    if test_calc > 10.0: 
+        # אם ההכפלה ב-100 מייצרת תוצאה לא הגיונית (מעל 10% דיבידנד), סימן שהמספר כבר הגיע באחוזים
+        return f"{val:.2f}%"
+    
+    return f"{test_calc:.2f}%"
 
 # פונקציה לחישוב מתנד RSI
 def calculate_rsi(series, period=14):
@@ -217,7 +220,7 @@ if ticker:
             tab1, tab2 = st.tabs(["🔍 ניתוח פנדמנטלי", "📊 ניתוח טכני"])
             
             # ==========================================
-            # טאב 1: ניתוח פנדמנטלי (תיקון סופי לתצוגת האחוזים)
+            # טאב 1: ניתוח פנדמנטלי
             # ==========================================
             with tab1:
                 col_graph, col_id = st.columns([2.0, 1.0])
@@ -246,7 +249,6 @@ if ticker:
                     col_cf_yield = (operating_cf / market_cap) * 100 if operating_cf and market_cap else None
                     fcf_yield = (free_cash_flow / market_cap) * 100 if free_cash_flow and market_cap else None
                     
-                    # שימוש בפונקציות הייעודיות החדשות למניעת עיוות נתוני דיבידנד
                     div_yield = info.get('dividendYield')
                     payout_ratio = info.get('payoutRatio')
                     
@@ -270,7 +272,7 @@ if ticker:
                         <table style='width:100%; margin-bottom:6px; color:#b2b5be;'>
                             <tr><td>Earnings Yield:</td><td style='text-align:left; color:#ffffff;'>{f'{earnings_yield:.1f}%' if earnings_yield else 'N/A'}</td></tr>
                             <tr><td>C/F Yield / FCF Yield:</td><td style='text-align:left; color:#ffffff;'>{f'{col_cf_yield:.1f}%' if col_cf_yield else 'N/A'} / {f'{fcf_yield:.1f}%' if fcf_yield else 'N/A'}</td></tr>
-                            <tr><td>Dividend / Payout:</td><td style='text-align:left; color:#ffffff;'>{format_dividend(div_yield)} / {format_pct_raw(payout_ratio)}</td></tr>
+                            <tr><td>Dividend / Payout:</td><td style='text-align:left; color:#ffffff;'>{format_dividend_fixed(div_yield)} / {format_pct_raw(payout_ratio)}</td></tr>
                         </table>
                         
                         <span style='color:#2962ff; font-weight:700;'>⚖️ Balances</span>
