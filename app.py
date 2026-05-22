@@ -109,16 +109,12 @@ def format_pct_raw(val):
         return f"{val:.2f}%"
     return f"{val * 100:.2f}%"
 
-# פונקציה תוקנה סופית: פותרת את באג ה-35% באמצעות מנגנון הגנה חכם מפני כפל כפול
+# פונקציה למניעת עיוות נתוני דיבידנד באמצעות מנגנון הגנה חכם מפני כפל כפול
 def format_dividend_fixed(val):
     if val is None or pd.isna(val) or val == 0: return "N/A"
-    
-    # ניסיון ראשון: בדיקה אם הערך מגיע כעשרוני קטן (למשל 0.005)
     test_calc = val * 100
     if test_calc > 10.0: 
-        # אם ההכפלה ב-100 מייצרת תוצאה לא הגיונית (מעל 10% דיבידנד), סימן שהמספר כבר הגיע באחוזים
         return f"{val:.2f}%"
-    
     return f"{test_calc:.2f}%"
 
 # פונקציה לחישוב מתנד RSI
@@ -256,8 +252,9 @@ if ticker:
                     total_debt = info.get('totalDebt')
                     net_balance = (total_cash - total_debt) if total_cash is not None and total_debt is not None else None
 
-                    st.markdown(f"""
-                    <div class='rtl-container' style='font-size:11px; line-height:1.4; border:1px solid #2a2e39; padding:10px; border-radius:6px; background-color:#1c2030; height:360px; overflow-y:auto;'>
+                    # שימוש קשיח ברכיב st.html כדי לכפות רינדור גרפי תקין של הטבלאות הפיננסיות ומניעת הדפסת קוד
+                    st.html(f"""
+                    <div class='rtl-container' style='font-family: sans-serif; font-size:11px; line-height:1.4; border:1px solid #2a2e39; padding:10px; border-radius:6px; background-color:#1c2030; height:360px; overflow-y:auto;'>
                         <b style='font-size:13px; color:#ffffff;'>📋 נתונים פיננסיים</b><hr style='margin:4px 0; border-color:#2a2e39;'>
                         
                         <span style='color:#2962ff; font-weight:700;'>💰 Financials</span>
@@ -287,7 +284,7 @@ if ticker:
                             <tr><td>Operating / Net Margin:</td><td style='text-align:left; color:#ffffff;'>{format_pct_raw(info.get('operatingMargins'))} / {format_pct_raw(info.get('profitMargins'))}</td></tr>
                         </table>
                     </div>
-                    """, unsafe_allow_html=True)
+                    """)
 
                 st.write("---")
                 st.subheader("📋 כרטיס ניקוד אוטומטי")
@@ -343,43 +340,4 @@ if ticker:
                     fig_tech = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.55, 0.22, 0.23])
                     
                     fig_tech.add_trace(go.Candlestick(
-                        x=df_tech.index, open=df_tech['Open'], high=df_tech['High'], low=df_tech['Low'], close=df_tech['Close'],
-                        name='מחיר',
-                        increasing=dict(line=dict(color='#089981'), fillcolor='#089981'),
-                        decreasing=dict(line=dict(color='#f23645'), fillcolor='#f23645')
-                    ), row=1, col=1)
-                    
-                    fig_tech.add_trace(go.Scatter(x=df_tech.index, y=df_tech['MA_Fast'], mode='lines', name=fast_label, line=dict(color='#ff9f43', width=1.5)), row=1, col=1)
-                    fig_tech.add_trace(go.Scatter(x=df_tech.index, y=df_tech['MA_Slow'], mode='lines', name=slow_label, line=dict(color='#2196f3', width=1.5)), row=1, col=1)
-                    
-                    colors, opacities = [], []
-                    for _, row in df_tech.iterrows():
-                        is_bullish = row['Close'] >= row['Open']
-                        colors.append('#089981' if is_bullish else '#f23645')
-                        if not pd.isna(row['Vol_MA_3M']) and row['Volume'] >= row['Vol_MA_3M']:
-                            opacities.append(0.9)
-                        else:
-                            opacities.append(0.25)
-                    
-                    fig_tech.add_trace(go.Bar(x=df_tech.index, y=df_tech['Volume'], name='ווליום', marker=dict(color=colors, opacity=opacities), showlegend=False), row=2, col=1)
-                    fig_tech.add_trace(go.Scatter(x=df_tech.index, y=df_tech['Vol_MA_3M'], mode='lines', name=vol_label, line=dict(color='#2962ff', width=1.8)), row=2, col=1)
-                    
-                    fig_tech.add_trace(go.Scatter(x=df_tech.index, y=df_tech['RSI'], mode='lines', name='RSI', line=dict(color='#9c27b0', width=1.5)), row=3, col=1)
-                    fig_tech.add_shape(type="line", x0=df_tech.index[0], y0=70, x1=df_tech.index[-1], y1=70, line=dict(color="#f23645", width=1, dash="dash"), row=3, col=1)
-                    fig_tech.add_shape(type="line", x0=df_tech.index[0], y0=30, x1=df_tech.index[-1], y1=30, line=dict(color="#089981", width=1, dash="dash"), row=3, col=1)
-                    
-                    fig_tech.add_vrect(x0=t1_val, x1=t2_val, fillcolor="#2962ff", opacity=0.08, layer="below", line_width=0, row="all", col=1)
-                    
-                    fig_tech.update_xaxes(showspikes=True, spikemode='across', spikesnap='cursor', spikethickness=1, spikedash='solid', spikecolor='#434651')
-                    fig_tech.update_layout(
-                        hovermode='x unified' if not is_intraday else False, 
-                        dragmode=False, xaxis_rangeslider_visible=False, height=600,
-                        template="plotly_dark", paper_bgcolor='#131722', plot_bgcolor='#131722',
-                        margin=dict(l=5, r=5, t=5, b=5),
-                        legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="right", x=1, font=dict(size=10, color='#d1d4dc'))
-                    )
-                    
-                    st.plotly_chart(fig_tech, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
-                    
-        except Exception as e:
-            st.error(f"שגיאה בעיבוד הנתונים: {e}")
+                        x=df_tech.index, open=df_tech
