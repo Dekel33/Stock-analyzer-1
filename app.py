@@ -142,12 +142,12 @@ if ticker:
             sector = info.get('sector', 'לא ידוע')
             current_price = info.get('currentPrice', info.get('regularMarketPrice', 0))
             
-            # HTML ללא הזחות למניעת שיבוש ב-Streamlit
-            status_html = f"""
-<div class='rtl-container' style='background-color:#1c2030; padding:10px; border-radius:6px; margin-bottom:15px; border: 1px solid #2a2e39; font-size:13px;'>
-    <b style='color:#ffffff;'>{company_name} ({ticker})</b> | סקטור: {sector} | מחיר: <b style='color:#2962ff;'>${current_price:.2f}</b>
-</div>
-"""
+            # בניית ה-HTML ללא ירידות שורה למניעת זיהוי כטקסט ב-Streamlit
+            status_html = "".join([
+                "<div class='rtl-container' style='background-color:#1c2030; padding:10px; border-radius:6px; margin-bottom:15px; border: 1px solid #2a2e39; font-size:13px;'>",
+                f"<b style='color:#ffffff;'>{company_name} ({ticker})</b> | סקטור: {sector} | מחיר: <b style='color:#2962ff;'>${current_price:.2f}</b>",
+                "</div>"
+            ])
             st.markdown(status_html, unsafe_allow_html=True)
             
             tf_mapping = {
@@ -241,39 +241,35 @@ if ticker:
                     total_debt = info.get('totalDebt')
                     net_balance = (total_cash - total_debt) if total_cash is not None and total_debt is not None else None
 
-                    # HTML ללא הזחות! זה פותר את בעיית הדפסת הטקסט הגולמי
-                    financials_html = f"""
-<div class='rtl-container' style='font-family: sans-serif; font-size:11px; line-height:1.4; border:1px solid #2a2e39; padding:10px; border-radius:6px; background-color:#1c2030; height:360px; overflow-y:auto;'>
-    <b style='font-size:13px; color:#ffffff;'>📋 נתונים פיננסיים</b><hr style='margin:4px 0; border-color:#2a2e39;'>
-    
-    <span style='color:#2962ff; font-weight:700;'>💰 Financials</span>
-    <table style='width:100%; margin-bottom:6px; color:#b2b5be;'>
-        <tr><td>Market Cap:</td><td style='text-align:left; color:#ffffff;'>{format_large_num(market_cap)}</td></tr>
-        <tr><td>P/CF:</td><td style='text-align:left; color:#ffffff;'>{f'{p_cf:.2f}' if p_cf else 'N/A'}</td></tr>
-        <tr><td>P/E / Forward P/E:</td><td style='text-align:left; color:#ffffff;'>{f'{pe:.1f}' if pe else 'N/A'} / {f'{fwd_pe:.1f}' if fwd_pe else 'N/A'}</td></tr>
-        <tr><td>PEG Ratio:</td><td style='text-align:left; color:#ffffff;'>{f'{peg:.2f}' if peg else 'N/A'}</td></tr>
-    </table>
-    
-    <span style='color:#2962ff; font-weight:700;'>📈 Yields</span>
-    <table style='width:100%; margin-bottom:6px; color:#b2b5be;'>
-        <tr><td>Earnings Yield:</td><td style='text-align:left; color:#ffffff;'>{f'{earnings_yield:.1f}%' if earnings_yield else 'N/A'}</td></tr>
-        <tr><td>C/F Yield / FCF Yield:</td><td style='text-align:left; color:#ffffff;'>{f'{col_cf_yield:.1f}%' if col_cf_yield else 'N/A'} / {f'{fcf_yield:.1f}%' if fcf_yield else 'N/A'}</td></tr>
-        <tr><td>Dividend / Payout:</td><td style='text-align:left; color:#ffffff;'>{format_dividend_fixed(div_yield)} / {format_pct_raw(payout_ratio)}</td></tr>
-    </table>
-    
-    <span style='color:#2962ff; font-weight:700;'>⚖️ Balances</span>
-    <table style='width:100%; margin-bottom:6px; color:#b2b5be;'>
-        <tr><td>Total Cash / Debt:</td><td style='text-align:left; color:#ffffff;'>{format_large_num(total_cash)} / {format_large_num(total_debt)}</td></tr>
-        <tr><td>Net Balance:</td><td style='text-align:left; color:#ffffff;'>{format_large_num(net_balance)}</td></tr>
-    </table>
-    
-    <span style='color:#2962ff; font-weight:700;'>📊 Margins</span>
-    <table style='width:100%; color:#b2b5be;'>
-        <tr><td>Gross Margin:</td><td style='text-align:left; color:#ffffff;'>{format_pct_raw(info.get('grossMargins'))}</td></tr>
-        <tr><td>Operating / Net Margin:</td><td style='text-align:left; color:#ffffff;'>{format_pct_raw(info.get('operatingMargins'))} / {format_pct_raw(info.get('profitMargins'))}</td></tr>
-    </table>
-</div>
-"""
+                    # HTML משוריין ללא ירידות שורה וללא רווחים מקדימים
+                    financials_html = "".join([
+                        "<div class='rtl-container' style='font-family: sans-serif; font-size:11px; line-height:1.4; border:1px solid #2a2e39; padding:10px; border-radius:6px; background-color:#1c2030; height:360px; overflow-y:auto;'>",
+                        "<b style='font-size:13px; color:#ffffff;'>📋 נתונים פיננסיים</b><hr style='margin:4px 0; border-color:#2a2e39;'>",
+                        "<span style='color:#2962ff; font-weight:700;'>💰 Financials</span>",
+                        "<table style='width:100%; margin-bottom:6px; color:#b2b5be;'>",
+                        f"<tr><td>Market Cap:</td><td style='text-align:left; color:#ffffff;'>{format_large_num(market_cap)}</td></tr>",
+                        f"<tr><td>P/CF:</td><td style='text-align:left; color:#ffffff;'>{f'{p_cf:.2f}' if p_cf else 'N/A'}</td></tr>",
+                        f"<tr><td>P/E / Forward P/E:</td><td style='text-align:left; color:#ffffff;'>{f'{pe:.1f}' if pe else 'N/A'} / {f'{fwd_pe:.1f}' if fwd_pe else 'N/A'}</td></tr>",
+                        f"<tr><td>PEG Ratio:</td><td style='text-align:left; color:#ffffff;'>{f'{peg:.2f}' if peg else 'N/A'}</td></tr>",
+                        "</table>",
+                        "<span style='color:#2962ff; font-weight:700;'>📈 Yields</span>",
+                        "<table style='width:100%; margin-bottom:6px; color:#b2b5be;'>",
+                        f"<tr><td>Earnings Yield:</td><td style='text-align:left; color:#ffffff;'>{f'{earnings_yield:.1f}%' if earnings_yield else 'N/A'}</td></tr>",
+                        f"<tr><td>C/F Yield / FCF Yield:</td><td style='text-align:left; color:#ffffff;'>{f'{col_cf_yield:.1f}%' if col_cf_yield else 'N/A'} / {f'{fcf_yield:.1f}%' if fcf_yield else 'N/A'}</td></tr>",
+                        f"<tr><td>Dividend / Payout:</td><td style='text-align:left; color:#ffffff;'>{format_dividend_fixed(div_yield)} / {format_pct_raw(payout_ratio)}</td></tr>",
+                        "</table>",
+                        "<span style='color:#2962ff; font-weight:700;'>⚖️ Balances</span>",
+                        "<table style='width:100%; margin-bottom:6px; color:#b2b5be;'>",
+                        f"<tr><td>Total Cash / Debt:</td><td style='text-align:left; color:#ffffff;'>{format_large_num(total_cash)} / {format_large_num(total_debt)}</td></tr>",
+                        f"<tr><td>Net Balance:</td><td style='text-align:left; color:#ffffff;'>{format_large_num(net_balance)}</td></tr>",
+                        "</table>",
+                        "<span style='color:#2962ff; font-weight:700;'>📊 Margins</span>",
+                        "<table style='width:100%; color:#b2b5be;'>",
+                        f"<tr><td>Gross Margin:</td><td style='text-align:left; color:#ffffff;'>{format_pct_raw(info.get('grossMargins'))}</td></tr>",
+                        f"<tr><td>Operating / Net Margin:</td><td style='text-align:left; color:#ffffff;'>{format_pct_raw(info.get('operatingMargins'))} / {format_pct_raw(info.get('profitMargins'))}</td></tr>",
+                        "</table>",
+                        "</div>"
+                    ])
                     st.markdown(financials_html, unsafe_allow_html=True)
 
                 st.write("---")
@@ -290,7 +286,7 @@ if ticker:
                 else: st.error(f"❌ **יחס שוטף נמוך מ-1**")
 
             # ==========================================
-            # טאב 2: ניתוח טכני (קוד שטוח וחסין לשגיאות Syntax)
+            # טאב 2: ניתוח טכני
             # ==========================================
             with tab2:
                 if df_tech.empty:
@@ -320,18 +316,16 @@ if ticker:
                     badge_bg = "rgba(16, 185, 129, 0.15)" if pct_diff >= 0 else "rgba(239, 68, 68, 0.15)"
                     sign = "+" if pct_diff >= 0 else ""
                     
-                    # HTML ללא הזחות למניעת קריסה ב-Streamlit
-                    badge_html = f"""
-<div class='rtl-container' style='display: flex; gap: 15px; background-color: #1c2030; padding: 6px 12px; border-radius: 4px; border: 1px solid #2a2e39; font-size: 12px; align-items: center;'>
-    <span style='color: #787b86;'>שינוי מחיר: <b style='color:#ffffff;'>${price_diff:.2f}</b></span>
-    <span style='background-color: {badge_bg}; color: {badge_color}; padding: 2px 8px; border-radius: 4px; font-weight: bold;'>תשואה: {sign}{pct_diff:.2f}%</span>
-</div>
-"""
+                    badge_html = "".join([
+                        "<div class='rtl-container' style='display: flex; gap: 15px; background-color: #1c2030; padding: 6px 12px; border-radius: 4px; border: 1px solid #2a2e39; font-size: 12px; align-items: center;'>",
+                        f"<span style='color: #787b86;'>שינוי מחיר: <b style='color:#ffffff;'>${price_diff:.2f}</b></span>",
+                        f"<span style='background-color: {badge_bg}; color: {badge_color}; padding: 2px 8px; border-radius: 4px; font-weight: bold;'>תשואה: {sign}{pct_diff:.2f}%</span>",
+                        "</div>"
+                    ])
                     st.markdown(badge_html, unsafe_allow_html=True)
 
                     fig_tech = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.55, 0.22, 0.23])
                     
-                    # פירוק הגרפים למשתנים בודדים למניעת SyntaxError של סוגריים חסרים
                     trace_candle = go.Candlestick(
                         x=df_tech.index, 
                         open=df_tech['Open'], 
