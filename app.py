@@ -117,7 +117,7 @@ st.markdown("<div class='rtl-container'><h3 style='margin-bottom:0; color:#fffff
 ticker = st.text_input("הכנס טיקר:", "AAPL").upper().strip()
 
 if ticker:
-    # סעיף 6: כפתורי בחירת טווח מאוחדים בשורה אחת בראש העמוד המשפיעים על שני הטאבים
+    # כפתורי בחירת טווח מאוחדים בשורה אחת בראש העמוד המשפיעים על שני הטאבים
     global_timeframe = st.radio(
         "בחר טווח זמן לניתוח:", 
         ["1D", "5D", "1M", "6M", "1Y", "YTD", "3Y", "5Y"], 
@@ -127,6 +127,7 @@ if ticker:
     
     is_intraday = global_timeframe in ["1D", "5D"]
     
+    # וידוא קפדני: st באותיות קטנות בלבד
     with st.spinner('מחלץ ומחשב נתונים...'):
         try:
             stock = yf.Ticker(ticker)
@@ -198,14 +199,14 @@ if ticker:
                     else: start_date = df_full.index[0]
                     df_tech = df_full.loc[start_date:].copy()
 
-            # סעיף 8: שינוי שמות הטאבים במדויק
+            # הטאבים המעודכנים בשמות החדשים
             tab1, tab2 = st.tabs(["🔍 ניתוח פנדמנטלי", "📊 ניתוח טכני"])
             
             # ==========================================
-            # טאב 1: ניתוח פנדמנטלי + נתונים פיננסיים (סעיפים 1, 2, 3)
+            # טאב 1: ניתוח פנדמנטלי
             # ==========================================
             with tab1:
-                col_graph, col_id = st.columns([2.0, 1.0]) # סעיף 2: הקטנת רוחב פאנל הנתונים
+                col_graph, col_id = st.columns([2.0, 1.0])
                 
                 with col_graph:
                     if not df_fund_chart.empty:
@@ -219,7 +220,6 @@ if ticker:
                         st.plotly_chart(fig_fund, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
                 
                 with col_id:
-                    # חילוץ וחישוב המשתנים המקוריים מלאים
                     market_cap = info.get('marketCap')
                     operating_cf = info.get('operatingCashflow')
                     free_cash_flow = info.get('freeCashflow')
@@ -229,7 +229,7 @@ if ticker:
                     p_cf = (market_cap / operating_cf) if market_cap and operating_cf else info.get('priceToCashFlow')
                     
                     earnings_yield = (1 / pe) * 100 if pe else None
-                    cf_yield = (operating_cf / market_cap) * 100 if operating_cf and market_cap else None
+                    col_cf_yield = (operating_cf / market_cap) * 100 if operating_cf and market_cap else None
                     fcf_yield = (free_cash_flow / market_cap) * 100 if free_cash_flow and market_cap else None
                     div_yield = info.get('dividendYield')
                     payout_ratio = info.get('payoutRatio')
@@ -243,7 +243,6 @@ if ticker:
                     operating_margin = info.get('operatingMargins')
                     net_margin = info.get('profitMargins')
 
-                    # סעיף 3: שינוי כותרת ל"נתונים פיננסיים" + חלוקה לקטגוריות מלאות (סעיף 1)
                     st.markdown(f"""
                     <div class='rtl-container' style='font-size:11px; line-height:1.4; border:1px solid #2a2e39; padding:10px; border-radius:6px; background-color:#1c2030; height:360px; overflow-y:auto;'>
                         <b style='font-size:13px; color:#ffffff;'>📋 נתונים פיננסיים</b><hr style='margin:4px 0; border-color:#2a2e39;'>
@@ -259,7 +258,7 @@ if ticker:
                         <span style='color:#2962ff; font-weight:700;'>📈 Yields</span>
                         <table style='width:100%; margin-bottom:6px; color:#b2b5be;'>
                             <tr><td>Earnings Yield:</td><td style='text-align:left; color:#ffffff;'>{f'{earnings_yield:.1f}%' if earnings_yield else 'N/A'}</td></tr>
-                            <tr><td>C/F Yield / FCF Yield:</td><td style='text-align:left; color:#ffffff;'>{f'{cf_yield:.1f}%' if cf_yield else 'N/A'} / {f'{fcf_yield:.1f}%' if fcf_yield else 'N/A'}</td></tr>
+                            <tr><td>C/F Yield / FCF Yield:</td><td style='text-align:left; color:#ffffff;'>{f'{col_cf_yield:.1f}%' if col_cf_yield else 'N/A'} / {f'{fcf_yield:.1f}%' if fcf_yield else 'N/A'}</td></tr>
                             <tr><td>Dividend / Payout:</td><td style='text-align:left; color:#ffffff;'>{format_pct(div_yield)} / {format_pct(payout_ratio)}</td></tr>
                         </table>
                         
@@ -291,7 +290,7 @@ if ticker:
                 else: st.error(f"❌ **יחס שוטף נמוך מ-1**")
 
             # ==========================================
-            # טאב 2: ניתוח טכני מתקדם (סעיפים 5, 6, 7 - עדכון LIVE חלק)
+            # טאב 2: ניתוח טכני
             # ==========================================
             with tab2:
                 if df_tech.empty:
@@ -301,7 +300,7 @@ if ticker:
                     df_tech['display_time'] = df_tech.index.strftime('%H:%M') if is_intraday else df_tech.index.strftime('%Y-%m-%d')
                     time_list = df_tech['display_time'].tolist()
                     
-                    # סליידר בחירת הטווח (סעיף 3: הטווח מופיע ומשתנה על גבי הבר עצמו ב-LIVE)
+                    # סליידר מדידה מעודכן וחלק ב-LIVE
                     start_idx, end_idx = st.select_slider(
                         "מדוד תשואה ב-LIVE ישירות על הבר (גרור את האצבע):",
                         options=range(len(time_list)),
@@ -318,7 +317,6 @@ if ticker:
                     t1_val = df_tech.index[start_idx]
                     t2_val = df_tech.index[end_idx]
 
-                    # סעיף 5: רצועה קומפקטית וממוקדת ללא שורות טקסט עודפות
                     badge_color = "#10b981" if pct_diff >= 0 else "#ef4444"
                     badge_bg = "rgba(16, 185, 129, 0.15)" if pct_diff >= 0 else "rgba(239, 68, 68, 0.15)"
                     sign = "+" if pct_diff >= 0 else ""
@@ -330,10 +328,8 @@ if ticker:
                         </div>
                     """, unsafe_allow_html=True)
 
-                    # בניית הגרף ב-3 קומות
                     fig_tech = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.55, 0.22, 0.23])
                     
-                    # קומה 1: נרות יפניים
                     fig_tech.add_trace(go.Candlestick(
                         x=df_tech.index, open=df_tech['Open'], high=df_tech['High'], low=df_tech['Low'], close=df_tech['Close'],
                         name='מחיר',
@@ -344,7 +340,6 @@ if ticker:
                     fig_tech.add_trace(go.Scatter(x=df_tech.index, y=df_tech['MA_Fast'], mode='lines', name=fast_label, line=dict(color='#ff9f43', width=1.5)), row=1, col=1)
                     fig_tech.add_trace(go.Scatter(x=df_tech.index, y=df_tech['MA_Slow'], mode='lines', name=slow_label, line=dict(color='#2196f3', width=1.5)), row=1, col=1)
                     
-                    # קומה 2: ווליום משודרג
                     colors, opacities = [], []
                     for _, row in df_tech.iterrows():
                         is_bullish = row['Close'] >= row['Open']
@@ -357,15 +352,13 @@ if ticker:
                     fig_tech.add_trace(go.Bar(x=df_tech.index, y=df_tech['Volume'], name='ווליום', marker=dict(color=colors, opacity=opacities), showlegend=False), row=2, col=1)
                     fig_tech.add_trace(go.Scatter(x=df_tech.index, y=df_tech['Vol_MA_3M'], mode='lines', name=vol_label, line=dict(color='#2962ff', width=1.8)), row=2, col=1)
                     
-                    # קומה 3: RSI
                     fig_tech.add_trace(go.Scatter(x=df_tech.index, y=df_tech['RSI'], mode='lines', name='RSI', line=dict(color='#9c27b0', width=1.5)), row=3, col=1)
                     fig_tech.add_shape(type="line", x0=df_tech.index[0], y0=70, x1=df_tech.index[-1], y1=70, line=dict(color="#f23645", width=1, dash="dash"), row=3, col=1)
                     fig_tech.add_shape(type="line", x0=df_tech.index[0], y0=30, x1=df_tech.index[-1], y1=30, line=dict(color="#089981", width=1, dash="dash"), row=3, col=1)
                     
-                    # 🔥 סעיף 7: הזרקת מלבן הצללה דינמי שמגיב ב-LIVE לסליידר ומסונכרן במדויק לגרף
+                    # הזרקת הצללה אינטראקטיבית ב-LIVE
                     fig_tech.add_vrect(x0=t1_val, x1=t2_val, fillcolor="#2962ff", opacity=0.08, layer="below", line_width=0, row="all", col=1)
                     
-                    # הגדרות קרוסהייר ונעילת מגע למניעת עיוותים
                     fig_tech.update_xaxes(showspikes=True, spikemode='across', spikesnap='cursor', spikethickness=1, spikedash='solid', spikecolor='#434651')
                     fig_tech.update_layout(
                         hovermode='x unified' if not is_intraday else False, 
