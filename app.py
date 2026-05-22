@@ -89,18 +89,26 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# פונקציית עזר לעיצוב מספרים גדולים
+# פונקציית עזר לעיצוב מספרים גדולים - תוקנה לתמיכה במספרים שליליים כמו Net Balance
 def format_large_num(num):
     if num is None or pd.isna(num): return "N/A"
-    if num >= 1e12: return f"${num/1e12:.2f}T"
-    if num >= 1e9: return f"${num/1e9:.2f}B"
-    if num >= 1e6: return f"${num/1e6:.2f}M"
-    return f"${num:,.0f}"
+    is_negative = num < 0
+    abs_num = abs(num)
+    
+    if abs_num >= 1e12: txt = f"${abs_num/1e12:.2f}T"
+    elif abs_num >= 1e9: txt = f"${abs_num/1e9:.2f}B"
+    elif abs_num >= 1e6: txt = f"${abs_num/1e6:.2f}M"
+    else: txt = f"${abs_num:,.0f}"
+        
+    return f"-{txt}" if is_negative else txt
 
-# פונקציית עזר לעיצוב אחוזים
+# פונקציית עזר לעיצוב אחוזים - תוקנה למניעת עיוות הדיבידנדים
 def format_pct(val):
     if val is None or pd.isna(val): return "N/A"
-    return f"{val * 100:.2f}%" if val <= 1.0 else f"{val:.2f}%"
+    # אם הנתון כבר מגיע באחוזים שלמים (גדול מ-1) נציג אותו, אחרת נכפיל ב-100
+    if abs(val) > 1.0:
+        return f"{val:.2f}%"
+    return f"{val * 100:.2f}%"
 
 # פונקציה לחישוב מתנד RSI
 def calculate_rsi(series, period=14):
@@ -127,7 +135,6 @@ if ticker:
     
     is_intraday = global_timeframe in ["1D", "5D"]
     
-    # וידוא קפדני: st באותיות קטנות בלבד
     with st.spinner('מחלץ ומחשב נתונים...'):
         try:
             stock = yf.Ticker(ticker)
@@ -199,11 +206,10 @@ if ticker:
                     else: start_date = df_full.index[0]
                     df_tech = df_full.loc[start_date:].copy()
 
-            # הטאבים המעודכנים בשמות החדשים
             tab1, tab2 = st.tabs(["🔍 ניתוח פנדמנטלי", "📊 ניתוח טכני"])
             
             # ==========================================
-            # טאב 1: ניתוח פנדמנטלי
+            # טאב 1: ניתוח פנדמנטלי (תיקון הנתונים הפיננסיים והפורמט)
             # ==========================================
             with tab1:
                 col_graph, col_id = st.columns([2.0, 1.0])
@@ -231,17 +237,14 @@ if ticker:
                     earnings_yield = (1 / pe) * 100 if pe else None
                     col_cf_yield = (operating_cf / market_cap) * 100 if operating_cf and market_cap else None
                     fcf_yield = (free_cash_flow / market_cap) * 100 if free_cash_flow and market_cap else None
-                    div_yield = info.get('dividendYield')
-                    payout_ratio = info.get('payoutRatio')
+                    
+                    # תיקון דיבידנד: הבאת הנתון בצורה אמינה
+                    div_yield = info.get('dividendYield', 0)
+                    payout_ratio = info.get('payoutRatio', 0)
                     
                     total_cash = info.get('totalCash')
                     total_debt = info.get('totalDebt')
                     net_balance = (total_cash - total_debt) if total_cash is not None and total_debt is not None else None
-                    net_balance_txt = format_large_num(net_balance) if net_balance else "N/A"
-                    
-                    gross_margin = info.get('grossMargins')
-                    operating_margin = info.get('operatingMargins')
-                    net_margin = info.get('profitMargins')
 
                     st.markdown(f"""
                     <div class='rtl-container' style='font-size:11px; line-height:1.4; border:1px solid #2a2e39; padding:10px; border-radius:6px; background-color:#1c2030; height:360px; overflow-y:auto;'>
@@ -265,13 +268,13 @@ if ticker:
                         <span style='color:#2962ff; font-weight:700;'>⚖️ Balances</span>
                         <table style='width:100%; margin-bottom:6px; color:#b2b5be;'>
                             <tr><td>Total Cash / Debt:</td><td style='text-align:left; color:#ffffff;'>{format_large_num(total_cash)} / {format_large_num(total_debt)}</td></tr>
-                            <tr><td>Net Balance:</td><td style='text-align:left; color:#ffffff;'>{net_balance_txt}</td></tr>
+                            <tr><td>Net Balance:</td><td style='text-align:left; color:#ffffff;'>{format_large_num(net_balance)}</td></tr>
                         </table>
                         
                         <span style='color:#2962ff; font-weight:700;'>📊 Margins</span>
                         <table style='width:100%; color:#b2b5be;'>
-                            <tr><td>Gross Margin:</td><td style='text-align:left; color:#ffffff;'>{format_pct(gross_margin)}</td></tr>
-                            <tr><td>Operating / Net Margin:</td><td style='text-align:left; color:#ffffff;'>{format_pct(operating_margin)} / {format_pct(net_margin)}</td></tr>
+                            <tr><td>Gross Margin:</td><td style='text-align:left; color:#ffffff;'>{format_pct(info.get('grossMargins'))}</td></tr>
+                            <tr><td>Operating / Net Margin:</td><td style='text-align:left; color:#ffffff;'>{format_pct(info.get('operatingMargins'))} / {format_pct(info.get('profitMargins'))}</td></tr>
                         </table>
                     </div>
                     """, unsafe_allow_html=True)
@@ -300,7 +303,6 @@ if ticker:
                     df_tech['display_time'] = df_tech.index.strftime('%H:%M') if is_intraday else df_tech.index.strftime('%Y-%m-%d')
                     time_list = df_tech['display_time'].tolist()
                     
-                    # סליידר מדידה מעודכן וחלק ב-LIVE
                     start_idx, end_idx = st.select_slider(
                         "מדוד תשואה ב-LIVE ישירות על הבר (גרור את האצבע):",
                         options=range(len(time_list)),
@@ -356,7 +358,6 @@ if ticker:
                     fig_tech.add_shape(type="line", x0=df_tech.index[0], y0=70, x1=df_tech.index[-1], y1=70, line=dict(color="#f23645", width=1, dash="dash"), row=3, col=1)
                     fig_tech.add_shape(type="line", x0=df_tech.index[0], y0=30, x1=df_tech.index[-1], y1=30, line=dict(color="#089981", width=1, dash="dash"), row=3, col=1)
                     
-                    # הזרקת הצללה אינטראקטיבית ב-LIVE
                     fig_tech.add_vrect(x0=t1_val, x1=t2_val, fillcolor="#2962ff", opacity=0.08, layer="below", line_width=0, row="all", col=1)
                     
                     fig_tech.update_xaxes(showspikes=True, spikemode='across', spikesnap='cursor', spikethickness=1, spikedash='solid', spikecolor='#434651')
